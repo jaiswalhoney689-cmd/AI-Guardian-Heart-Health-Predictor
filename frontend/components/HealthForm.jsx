@@ -38,7 +38,7 @@ export default function HealthForm({ onSubmit, loading }) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Age */}
       <div>
-        <label className="block text-sm font-medium text-slate-300 mb-1">
+        <label className="block text-sm font-medium text-white mb-1">
           Age (years) *
         </label>
         <input
