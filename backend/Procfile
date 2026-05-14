@@ -1,0 +1,8 @@
+# Deployment configuration for Render
+web:
+  command: node server.js
+  envVars:
+    - key: GEMINI_API_KEY
+      scope: build
+    - key: NODE_ENV  
+      value: production
