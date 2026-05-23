@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import HealthForm from '../components/HealthForm'
 import RiskResult from '../components/RiskResult'
 
@@ -6,11 +6,52 @@ export default function AssessPage() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [streak, setStreak] = useState(0)
+
+  useEffect(() => {
+    // Calculate streak on component mount
+    calculateStreak()
+  }, [])
+
+  const calculateStreak = () => {
+    if (typeof window === 'undefined') return
+    
+    const visits = JSON.parse(localStorage.getItem('cardiocheck_visits') || '[]')
+    const today = new Date().toISOString().split('T')[0]
+
+    // Add today if not already present
+    if (!visits.includes(today)) {
+      visits.push(today)
+      localStorage.setItem('cardiocheck_visits', JSON.stringify(visits))
+    }
+
+    // Calculate streak
+    let currentStreak = 0
+    const today_date = new Date(today)
+    for (let i = 0; i < visits.length; i++) {
+      const visitDate = new Date(visits[visits.length - 1 - i])
+      const expectedDate = new Date(today_date)
+      expectedDate.setDate(expectedDate.getDate() - i)
+      const expectedStr = expectedDate.toISOString().split('T')[0]
+      if (visits[visits.length - 1 - i] === expectedStr) {
+        currentStreak++
+      } else {
+        break
+      }
+    }
+
+    setStreak(currentStreak)
+  }
 
   const handleSubmit = async (formData) => {
     setLoading(true)
     setError(null)
     try {
+      // Store form data in sessionStorage for RiskResult component
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('formData', JSON.stringify(formData))
+      }
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002'
       const response = await fetch(`${apiUrl}/assess`, {
         method: 'POST',
@@ -41,8 +82,15 @@ export default function AssessPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 py-8 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
+        {/* Header with Streak */}
         <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            {streak > 0 && (
+              <div className="inline-block bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-full font-semibold text-sm">
+                🔥 {streak} day streak!
+              </div>
+            )}
+          </div>
           <h1 className="text-4xl md:text-5xl font-bold text-red-900 mb-2">
             CardioCheck AI
           </h1>
