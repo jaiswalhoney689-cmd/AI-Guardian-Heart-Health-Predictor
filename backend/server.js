@@ -15,7 +15,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 const MODEL_NAME = process.env.MODEL_NAME || 'gemini-2.5-flash'
 
 // System prompt for Gemini
-const SYSTEM_PROMPT = `You are a preventive cardiology risk advisor. Based on the health inputs provided, return ONLY a valid JSON object with these keys: risk_level (Low/Moderate/High), risk_score_pct (0-100 integer), summary (2 sentences, plain English), recommendations (array of 4 strings), sleep_risk (0-100 integer), stress_risk (0-100 integer). The sleep_risk and stress_risk should reflect individual risk contributions from sleep and stress factors. Do NOT provide a clinical diagnosis. Do NOT add any text outside the JSON.`
+const SYSTEM_PROMPT = `You are a preventive cardiology risk advisor. Based on the health inputs provided, return ONLY a valid JSON object with these keys: risk_level (Low/Moderate/High), risk_score_pct (0-100 integer), summary (2 sentences, plain English), recommendations (array of 4 strings), sleep_risk (0-100 integer), stress_risk (0-100 integer). Consider all provided health factors including family history, medical history, sleep, and stress. The sleep_risk and stress_risk should reflect individual risk contributions. Do NOT provide a clinical diagnosis. Do NOT add any text outside the JSON.`
 
 // POST /assess - Main assessment endpoint
 app.post('/assess', async (req, res) => {
@@ -27,33 +27,59 @@ app.post('/assess', async (req, res) => {
       height,
       systolicBP,
       diastolicBP,
+      systolicBPUnknown,
       cholesterol,
+      cholesterolUnknown,
       smoking,
       exerciseFrequency,
-      familyHistory,
+      familyHeartDisease,
+      familyHighBP,
+      familyDiabetes,
+      familyStroke,
+      familyHighCholesterol,
+      medicalHistory,
+      otherDisease,
+      smokingHabit,
+      alcoholUse,
       sleepHours,
       stressLevel,
     } = req.body
 
-    // Validation
-    if (
-      !age ||
-      !weight ||
-      !height ||
-      !systolicBP ||
-      !diastolicBP ||
-      !cholesterol
-    ) {
-      return res.status(400).json({ error: 'Missing required fields' })
+    // Validation - allow BP and cholesterol to be unknown
+    if (!age || !weight || !height) {
+      return res.status(400).json({ error: 'Missing required fields: age, weight, height' })
     }
 
-    // Validate sleep and stress (optional but set defaults if missing)
+    // Use provided values or mark as unknown
+    const hasBP = !systolicBPUnknown && systolicBP && diastolicBP
+    const hasChol = !cholesterolUnknown && cholesterol
+
+    // Validate sleep and stress
     const sleep = sleepHours || 7
     const stress = stressLevel || 3
 
     // Calculate BMI
     const heightInMeters = height / 100
     const bmi = (weight / (heightInMeters * heightInMeters)).toFixed(1)
+
+    // Format family history
+    const familyHistorySummary = [
+      familyHeartDisease === 'yes' && 'heart disease',
+      familyHighBP === 'yes' && 'high blood pressure',
+      familyDiabetes === 'yes' && 'diabetes',
+      familyStroke === 'yes' && 'stroke',
+      familyHighCholesterol === 'yes' && 'high cholesterol',
+    ]
+      .filter(Boolean)
+      .join(', ') || 'none reported'
+
+    // Format medical history
+    const medicalHistorySummary = medicalHistory
+      ? Object.entries(medicalHistory)
+          .filter(([_, v]) => v)
+          .map(([k]) => k)
+          .join(', ') || 'none'
+      : 'none'
 
     // Create user prompt with health data
     const userPrompt = `Patient Health Data:
@@ -62,15 +88,25 @@ app.post('/assess', async (req, res) => {
 - Weight: ${weight} kg
 - Height: ${height} cm
 - BMI: ${bmi}
-- Blood Pressure: ${systolicBP}/${diastolicBP} mmHg
-- Total Cholesterol: ${cholesterol} mg/dL
+- Blood Pressure: ${hasBP ? `${systolicBP}/${diastolicBP} mmHg` : 'Not provided'}
+- Total Cholesterol: ${hasChol ? `${cholesterol} mg/dL` : 'Not provided'}
 - Smoking Status: ${smoking}
 - Exercise Frequency: ${exerciseFrequency}
-- Family History of Heart Disease: ${familyHistory}
+- Family History: ${familyHistorySummary}
+- Past/Current Medical Conditions: ${medicalHistorySummary}${otherDisease ? ` (+ ${otherDisease})` : ''}
+- Current Smoking: ${smokingHabit}
+- Alcohol Use: ${alcoholUse}
 - Average Sleep: ${sleep} hours/night
 - Daily Stress Level: ${stress}/5 (1=very low, 5=very high)
 
-Based on these metrics including sleep and stress factors, provide a cardiovascular disease risk assessment. Consider that sleep deprivation (<6h) and chronic stress (level 4-5) are known risk factors. The risk should consider age, gender, blood pressure, cholesterol, smoking status, physical activity, family history, BMI, sleep quality, and stress levels. Return the response as valid JSON only, including individual sleep_risk and stress_risk components (0-100).`
+Based on these comprehensive health metrics, provide a cardiovascular disease risk assessment. Consider that:
+- Sleep deprivation (<6h) and excess sleep (>10h) are risk factors
+- Chronic stress (level 4-5) increases cardiovascular risk
+- Family history significantly influences personal risk
+- Existing medical conditions (diabetes, hypertension, etc.) increase risk
+- Missing data points should be estimated conservatively
+
+Return the response as valid JSON only with individual sleep_risk and stress_risk components (0-100).`
 
     // Call Gemini API
     let result
@@ -82,50 +118,81 @@ Based on these metrics including sleep and stress factors, provide a cardiovascu
       ])
     } catch (aiErr) {
       console.error('Error calling Generative AI model:', aiErr)
-      // If model not found (404), try to list available models and return helpful message
-      // If AI fails (missing key or model not available), fall back to a simple local heuristic
+      // Fallback to local heuristic
       console.warn('Falling back to local heuristic assessment (demo mode).')
       try {
         const fallback = (input) => {
-          // Simple risk heuristic (demo-only): base score on age, BMI, BP, cholesterol, smoking, sleep, stress
-          const ageScore = Math.min(Math.max((input.age - 30) * 0.6, 0), 30) // age contribution
-          const bmi = (() => {
-            const h = input.height / 100 || 1
-            return Number((input.weight / (h * h))).toFixed(1)
-          })()
-          const bmiNum = parseFloat(bmi)
-          const bmiScore = bmiNum > 25 ? Math.min((bmiNum - 24) * 2.5, 20) : 0
-          const bpParts = (input.systolicBP || '0').toString().split('/').map(Number)
-          const sys = Number(input.systolicBP) || (bpParts[0] || 0)
-          const bpScore = sys > 130 ? Math.min((sys - 120) * 0.6, 20) : 0
-          const chol = Number(input.cholesterol) || 0
-          const cholScore = chol > 200 ? Math.min((chol - 180) * 0.12, 15) : 0
-          const smokeScore = (input.smoking === 'yes' || input.smoking === 'current' || input.smoking === 'Current') ? 15 : 0
+          let score = 10 // base score
           
-          // Sleep risk: <6h or >10h = high risk
+          // Age factor
+          const ageScore = Math.min(Math.max((input.age - 30) * 0.6, 0), 30)
+          score += ageScore
+
+          // BMI factor
+          const h = input.height / 100 || 1
+          const bmiNum = parseFloat(input.weight / (h * h))
+          const bmiScore = bmiNum > 25 ? Math.min((bmiNum - 24) * 2.5, 20) : 0
+          score += bmiScore
+
+          // Blood pressure
+          if (input.systolicBP) {
+            const sys = Number(input.systolicBP)
+            const bpScore = sys > 130 ? Math.min((sys - 120) * 0.6, 20) : 0
+            score += bpScore
+          }
+
+          // Cholesterol
+          if (input.cholesterol) {
+            const chol = Number(input.cholesterol)
+            const cholScore = chol > 200 ? Math.min((chol - 180) * 0.12, 15) : 0
+            score += cholScore
+          }
+
+          // Smoking
+          const smokeScore = (input.smoking === 'yes' || input.smoking === 'current') ? 15 : 0
+          score += smokeScore
+
+          // Exercise
+          const exerciseScore = input.exerciseFrequency === 'sedentary' ? 10 : input.exerciseFrequency === 'vigorous' ? -5 : 0
+          score += exerciseScore
+
+          // Family history
+          const familyScore = (input.familyHeartDisease === 'yes' || input.familyHighBP === 'yes') ? 10 : 0
+          score += familyScore
+
+          // Medical history
+          let medicalScore = 0
+          if (input.medicalHistory) {
+            if (input.medicalHistory.diabetes) medicalScore += 15
+            if (input.medicalHistory.hypertension) medicalScore += 12
+            if (input.medicalHistory.obesity) medicalScore += 8
+            if (input.medicalHistory.kidney) medicalScore += 10
+          }
+          score += medicalScore
+
+          // Sleep risk
           const sleepVal = input.sleepHours || 7
           const sleepRisk = sleepVal < 6 || sleepVal > 10 ? 60 : sleepVal >= 7 && sleepVal <= 9 ? 20 : 40
-          
-          // Stress risk: level 4-5 = high risk
+
+          // Stress risk
           const stressVal = input.stressLevel || 3
           const stressRisk = stressVal >= 4 ? 60 : stressVal >= 3 ? 40 : 20
 
-          let score = Math.round(ageScore + bmiScore + bpScore + cholScore + smokeScore)
-          score = Math.min(Math.max(score, 1), 99)
+          score = Math.min(Math.max(Math.round(score), 1), 99)
 
           const level = score < 25 ? 'Low' : score < 55 ? 'Moderate' : 'High'
 
           const recommendations = [
             'Maintain a balanced diet and monitor weight regularly.',
             'Aim for 150 minutes of moderate exercise per week.',
-            'Follow up with your primary care provider for blood pressure management.',
-            'Consider lifestyle changes to reduce cholesterol and smoking cessation if applicable.'
+            'Follow up with your primary care provider for blood pressure and cholesterol management.',
+            'Consider lifestyle changes and stress reduction techniques like meditation or mindfulness.',
           ]
 
           return {
             risk_level: level,
             risk_score_pct: score,
-            summary: `Estimated ${level} cardiovascular risk based on provided inputs.`,
+            summary: `Based on your health profile, your estimated cardiovascular risk is ${level}. Key factors include your age, lifestyle habits, family history, and existing health conditions.`,
             recommendations,
             sleep_risk: Math.round(sleepRisk),
             stress_risk: Math.round(stressRisk),
@@ -133,7 +200,7 @@ Based on these metrics including sleep and stress factors, provide a cardiovascu
           }
         }
 
-        const demoResult = fallback({ age, gender, weight, height, systolicBP, diastolicBP, cholesterol, smoking, exerciseFrequency, familyHistory, sleepHours: sleep, stressLevel: stress })
+        const demoResult = fallback(req.body)
         return res.json(demoResult)
       } catch (fallbackErr) {
         console.error('Fallback assessment failed:', fallbackErr)
@@ -148,7 +215,6 @@ Based on these metrics including sleep and stress factors, provide a cardiovascu
     try {
       assessmentData = JSON.parse(responseText)
     } catch (parseError) {
-      // If parsing fails, try to extract JSON from the response
       const jsonMatch = responseText.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         assessmentData = JSON.parse(jsonMatch[0])

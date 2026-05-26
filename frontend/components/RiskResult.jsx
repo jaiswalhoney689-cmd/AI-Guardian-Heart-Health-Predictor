@@ -9,13 +9,25 @@ export default function RiskResult({ result, onReset }) {
     smoking: 'no',
     exerciseFrequency: 'moderate',
   })
+  const [animatedScore, setAnimatedScore] = useState(0)
 
-  // Calculate Heart Health Score (inverted from risk)
+  // Calculate Heart Health Score
   const heartHealthScore = 100 - (result.risk_score_pct || 50)
+
+  // Animate score on mount
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAnimatedScore((prev) => {
+        const target = heartHealthScore
+        const diff = target - prev
+        return prev + diff * 0.1
+      })
+    }, 30)
+    return () => clearInterval(timer)
+  }, [heartHealthScore])
 
   // Initialize badges and streak on mount
   useEffect(() => {
-    // Load form data from sessionStorage if available
     const stored = typeof window !== 'undefined' ? sessionStorage.getItem('formData') : null
     if (stored) {
       try {
@@ -25,71 +37,51 @@ export default function RiskResult({ result, onReset }) {
       }
     }
 
-    // Calculate earned badges
     const earnedBadges = calculateBadges(formData)
     setBadges(earnedBadges)
-
-    // Calculate and update streak
     updateStreak()
   }, [])
-
-  // Save form data to session storage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('formData', JSON.stringify(formData))
-    }
-  }, [formData])
 
   const calculateBadges = (data) => {
     const earned = []
 
-    // Sleep Hero: 7-9 hours
     if (data.sleepHours >= 7 && data.sleepHours <= 9) {
       earned.push({
         id: 'sleep-hero',
-        name: 'Sleep Hero',
+        name: 'Sleep Champion',
         emoji: '🌙',
-        condition: 'sleep_hours between 7 and 9',
       })
     }
 
-    // Calm Mind: stress <= 2
     if (data.stressLevel <= 2) {
       earned.push({
         id: 'calm-mind',
         name: 'Calm Mind',
         emoji: '🧘',
-        condition: 'stress_level <= 2',
       })
     }
 
-    // Non-Smoker: smoking = never
     if (data.smoking === 'never' || data.smoking === 'no' || data.smoking === 'former') {
       earned.push({
         id: 'non-smoker',
         name: 'Non-Smoker',
         emoji: '🚭',
-        condition: 'smoking = never',
       })
     }
 
-    // Active Life: exercise >= 4 days/week
-    if (data.exerciseFrequency === 'vigorous') {
+    if (data.exerciseFrequency === 'vigorous' || data.exerciseFrequency === 'moderate') {
       earned.push({
         id: 'active-life',
-        name: 'Active Life',
+        name: 'Active Lifestyle',
         emoji: '🏃',
-        condition: 'exercise_frequency >= 4 days/week',
       })
     }
 
-    // Heart Guard: All 4 badges earned simultaneously
     if (earned.length >= 4) {
       earned.push({
         id: 'heart-guard',
-        name: 'Heart Guard',
-        emoji: '❤️',
-        condition: 'All 4 badges earned simultaneously',
+        name: 'Heart Guardian',
+        emoji: '❤️‍🩹',
       })
     }
 
@@ -102,13 +94,11 @@ export default function RiskResult({ result, onReset }) {
     const visits = JSON.parse(localStorage.getItem('cardiocheck_visits') || '[]')
     const today = new Date().toISOString().split('T')[0]
 
-    // Add today if not already present
     if (!visits.includes(today)) {
       visits.push(today)
       localStorage.setItem('cardiocheck_visits', JSON.stringify(visits))
     }
 
-    // Calculate streak
     let currentStreak = 0
     const today_date = new Date(today)
     for (let i = 0; i < visits.length; i++) {
@@ -126,295 +116,353 @@ export default function RiskResult({ result, onReset }) {
     setStreak(currentStreak)
   }
 
-  const getScoreColor = (score) => {
-    if (score >= 70) return 'text-green-400'
-    if (score >= 40) return 'text-amber-400'
-    return 'text-red-400'
-  }
-
-  const getScoreBgColor = (score) => {
-    if (score >= 70) return 'text-green-500'
-    if (score >= 40) return 'text-amber-500'
-    return 'text-red-500'
-  }
-
   const getRiskColor = (level) => {
     switch (level.toLowerCase()) {
       case 'low':
-        return 'bg-green-100 border-green-400 text-green-900'
+        return {
+          bg: 'bg-green-50',
+          border: 'border-green-300',
+          text: 'text-green-900',
+          badge: 'bg-green-500',
+          gradient: 'from-green-400 to-emerald-600',
+        }
       case 'moderate':
-        return 'bg-yellow-100 border-yellow-400 text-yellow-900'
+        return {
+          bg: 'bg-amber-50',
+          border: 'border-amber-300',
+          text: 'text-amber-900',
+          badge: 'bg-amber-500',
+          gradient: 'from-amber-400 to-orange-600',
+        }
       case 'high':
-        return 'bg-red-100 border-red-400 text-red-900'
+        return {
+          bg: 'bg-red-50',
+          border: 'border-red-300',
+          text: 'text-red-900',
+          badge: 'bg-red-500',
+          gradient: 'from-red-400 to-rose-600',
+        }
       default:
-        return 'bg-gray-100 border-gray-400 text-gray-900'
+        return {
+          bg: 'bg-gray-50',
+          border: 'border-gray-300',
+          text: 'text-gray-900',
+          badge: 'bg-gray-500',
+          gradient: 'from-gray-400 to-slate-600',
+        }
     }
   }
 
-  const getRiskBadgeColor = (level) => {
+  const getRiskMessage = (level) => {
     switch (level.toLowerCase()) {
       case 'low':
-        return 'bg-green-500 text-white'
+        return {
+          title: '✓ Low Risk',
+          message: 'Great news! Your current heart disease risk is low. Continue maintaining healthy habits.',
+          action: 'Keep up the good work!',
+        }
       case 'moderate':
-        return 'bg-yellow-500 text-white'
+        return {
+          title: '⚠ Moderate Risk',
+          message: 'Your risk is moderate. Consider making lifestyle improvements and consulting your healthcare provider.',
+          action: 'Start with one recommendation below.',
+        }
       case 'high':
-        return 'bg-red-500 text-white'
+        return {
+          title: '! High Risk',
+          message: 'Your risk is elevated. It's important to schedule a consultation with a cardiologist soon.',
+          action: 'Seek professional medical advice.',
+        }
       default:
-        return 'bg-gray-500 text-white'
-    }
-  }
-
-  const getIcon = (level) => {
-    switch (level.toLowerCase()) {
-      case 'low':
-        return '✓'
-      case 'moderate':
-        return '⚠'
-      case 'high':
-        return '!'
-      default:
-        return '?'
+        return {
+          title: '? Your Risk',
+          message: 'We've analyzed your health data. Review the details below.',
+          action: 'Learn more below.',
+        }
     }
   }
 
   const handleShare = async () => {
     if (typeof window === 'undefined') return
 
-    const shareText = `I checked my heart health on CardioCheck AI and scored ${heartHealthScore}/100! Check yours at cardiocheckai-iota.vercel.app`
+    const shareText = `I just completed a heart health risk assessment on CardioCheck AI! 🏥 My health score: ${Math.round(heartHealthScore)}/100`
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'CardioCheck AI',
+          title: 'CardioCheck AI - Heart Health Assessment',
           text: shareText,
-          url: 'https://cardiocheckai-iota.vercel.app',
+          url: 'https://cardiocheckai.vercel.app',
         })
       } catch (err) {
         console.log('Share cancelled')
       }
     } else {
-      // Fallback: copy to clipboard
       navigator.clipboard.writeText(shareText)
       alert('Score copied to clipboard!')
     }
   }
 
+  const handleDownload = () => {
+    const reportContent = `
+HEART HEALTH ASSESSMENT REPORT
+Generated: ${new Date().toLocaleDateString()}
+
+OVERALL RISK SCORE: ${Math.round(heartHealthScore)}/100
+
+Risk Level: ${result.risk_level}
+Risk Percentage: ${result.risk_score_pct}%
+
+SUMMARY:
+${result.summary}
+
+RECOMMENDATIONS:
+${result.recommendations.map((rec, i) => `${i + 1}. ${rec}`).join('\n')}
+
+DISCLAIMER:
+This assessment is educational only and not a medical diagnosis.
+Please consult with a healthcare professional for personalized medical advice.
+
+For more information, visit: https://cardiocheckai.vercel.app
+    `
+    const element = document.createElement('a')
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(reportContent))
+    element.setAttribute('download', `CardioCheck_Report_${new Date().toISOString().split('T')[0]}.txt`)
+    element.style.display = 'none'
+    document.body.appendChild(element)
+    element.click()
+    document.body.removeChild(element)
+  }
+
+  const colors = getRiskColor(result.risk_level)
+  const message = getRiskMessage(result.risk_level)
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       {/* Streak Badge */}
       {streak > 0 && (
-        <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-3 rounded-lg text-center font-semibold">
-          🔥 Day {streak} streak! Keep going!
+        <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-4 rounded-lg text-center font-semibold animate-pulse">
+          🔥 Day {streak} Streak! You're on fire!
         </div>
       )}
 
-      {/* Heart Health Score Ring */}
-      <div className="flex flex-col items-center justify-center py-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg">
-        <div className="relative w-40 h-40 flex items-center justify-center">
-          <svg className="absolute w-40 h-40 transform -rotate-90" viewBox="0 0 160 160">
-            <circle
-              cx="80"
-              cy="80"
-              r="75"
-              stroke="rgba(71, 85, 105, 0.3)"
-              strokeWidth="8"
-              fill="none"
-            />
-            <circle
-              cx="80"
-              cy="80"
-              r="75"
-              stroke="currentColor"
-              strokeWidth="8"
-              fill="none"
-              strokeDasharray={`${(heartHealthScore / 100) * 471} 471`}
-              className={`transition-all duration-1000 ${getScoreBgColor(heartHealthScore)}`}
-            />
-          </svg>
-          <div className="text-center z-10">
-            <div className={`text-5xl font-bold ${getScoreColor(heartHealthScore)}`}>
-              {heartHealthScore}
+      {/* Healthcare Trust Banner */}
+      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+        <p className="text-sm text-blue-900 font-medium">
+          <strong>🏥 Important:</strong> This AI assessment is for educational purposes only and not a medical diagnosis.
+          Always consult a healthcare professional.
+        </p>
+      </div>
+
+      {/* Animated Heart Health Score */}
+      <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-8 shadow-md">
+        <div className="flex flex-col items-center justify-center">
+          <p className="text-sm text-slate-600 font-medium mb-4">Your Heart Health Score</p>
+
+          {/* Animated Circular Progress */}
+          <div className="relative w-48 h-48 flex items-center justify-center mb-4">
+            <svg className="absolute w-48 h-48 transform -rotate-90" viewBox="0 0 200 200">
+              {/* Background circle */}
+              <circle cx="100" cy="100" r="90" fill="none" stroke="#e5e7eb" strokeWidth="8" />
+              
+              {/* Animated score circle */}
+              <circle
+                cx="100"
+                cy="100"
+                r="90"
+                fill="none"
+                stroke="url(#scoreGradient)"
+                strokeWidth="8"
+                strokeDasharray={`${(animatedScore / 100) * 565} 565`}
+                strokeLinecap="round"
+                className="transition-all duration-1000"
+              />
+
+              {/* Gradient definition */}
+              <defs>
+                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={colors.gradient.split(' ')[1]} />
+                  <stop offset="100%" stopColor={colors.gradient.split(' ')[3]} />
+                </linearGradient>
+              </defs>
+            </svg>
+
+            {/* Center content */}
+            <div className="text-center z-10">
+              <div className={`text-5xl font-bold bg-gradient-to-r ${colors.gradient} bg-clip-text text-transparent`}>
+                {Math.round(animatedScore)}
+              </div>
+              <p className="text-sm text-slate-600 mt-2">out of 100</p>
             </div>
-            <div className="text-sm text-slate-400 mt-1">Your Heart Health Score</div>
+          </div>
+
+          {/* Score interpretation */}
+          <div className="text-center">
+            <p className={`text-sm font-medium ${colors.text}`}>
+              {animatedScore >= 70
+                ? '✓ Excellent heart health'
+                : animatedScore >= 40
+                ? '⚠ Fair heart health'
+                : '! Poor heart health'}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Risk Level Card */}
-      <div className={`p-6 border-2 rounded-lg ${getRiskColor(result.risk_level)}`}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">Your Heart Disease Risk</h2>
-          <span className={`${getRiskBadgeColor(result.risk_level)} w-14 h-14 flex items-center justify-center rounded-full text-xl font-bold`}>
-            {getIcon(result.risk_level)}
-          </span>
+      {/* Risk Assessment Card */}
+      <div className={`rounded-xl border-2 ${colors.border} ${colors.bg} p-6 shadow-md`}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h2 className={`text-2xl font-bold ${colors.text} mb-1`}>{message.title}</h2>
+            <p className={`text-sm ${colors.text} opacity-80`}>{message.message}</p>
+          </div>
+          <div className={`${colors.badge} text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold flex-shrink-0`}>
+            {result.risk_score_pct}%
+          </div>
         </div>
 
-        <div className="flex items-baseline gap-2 mb-4">
-          <span className="text-4xl font-bold">{result.risk_score_pct}%</span>
-          <span className="text-lg font-semibold capitalize">{result.risk_level} Risk</span>
+        <div className={`p-3 rounded-lg ${colors.bg} border-2 ${colors.border} mt-4`}>
+          <p className={`text-sm font-medium ${colors.text}`}>💡 {message.action}</p>
         </div>
+      </div>
 
-        <p className="text-base leading-relaxed">{result.summary}</p>
+      {/* Key Insights */}
+      <div className="bg-white rounded-xl border-2 border-slate-200 p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900 mb-4">Key Health Insights</h3>
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">❤️</span>
+            <div>
+              <p className="font-semibold text-slate-900">Risk Level</p>
+              <p className="text-sm text-slate-600 capitalize">{result.risk_level} risk for heart disease</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <span className="text-xl">📊</span>
+            <div>
+              <p className="font-semibold text-slate-900">Risk Percentage</p>
+              <p className="text-sm text-slate-600">{result.risk_score_pct}% estimated risk</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <span className="text-xl">📋</span>
+            <div>
+              <p className="font-semibold text-slate-900">Summary</p>
+              <p className="text-sm text-slate-600">{result.summary}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Risk Factor Breakdown */}
-      <div className="bg-slate-50 p-6 rounded-lg">
-        <h3 className="font-bold text-gray-900 mb-4 text-lg">Risk Factor Breakdown</h3>
+      <div className="bg-white rounded-xl border-2 border-slate-200 p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900 mb-4">Risk Factors</h3>
         <div className="space-y-4">
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Sleep Quality</span>
-              <span className="text-sm font-bold text-gray-900">{result.sleep_risk || 40}%</span>
-            </div>
-            <div className="w-full bg-gray-300 rounded-full h-2">
-              <div
-                className="bg-red-500 h-2 rounded-full"
-                style={{ width: `${result.sleep_risk || 40}%` }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Stress Level</span>
-              <span className="text-sm font-bold text-gray-900">{result.stress_risk || 40}%</span>
-            </div>
-            <div className="w-full bg-gray-300 rounded-full h-2">
-              <div
-                className="bg-orange-500 h-2 rounded-full"
-                style={{ width: `${result.stress_risk || 40}%` }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Overall Risk</span>
-              <span className="text-sm font-bold text-gray-900">{result.risk_score_pct}%</span>
-            </div>
-            <div className="w-full bg-gray-300 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full ${
-                  result.risk_score_pct < 25
-                    ? 'bg-green-500'
-                    : result.risk_score_pct < 55
-                    ? 'bg-yellow-500'
-                    : 'bg-red-500'
-                }`}
-                style={{ width: `${result.risk_score_pct}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Achievement Badges */}
-      {badges.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-lg">
-          <h3 className="font-bold text-gray-900 mb-4 text-lg">🏆 Your Achievements</h3>
-          <div className="grid grid-cols-3 gap-3">
-            {badges.map((badge) => (
-              <div
-                key={badge.id}
-                className="flex flex-col items-center p-4 bg-white rounded-lg border-2 border-amber-200 shadow-sm"
-              >
-                <div className="text-3xl mb-1">{badge.emoji}</div>
-                <div className="text-xs font-semibold text-gray-800 text-center">{badge.name}</div>
+          {[
+            { name: 'Sleep Quality', value: result.sleep_risk || 40, color: 'from-blue-400 to-blue-600' },
+            { name: 'Stress Level', value: result.stress_risk || 40, color: 'from-orange-400 to-orange-600' },
+            { name: 'Overall Risk', value: result.risk_score_pct || 50, color: 'from-red-400 to-red-600' },
+          ].map((factor, idx) => (
+            <div key={idx}>
+              <div className="flex justify-between mb-2">
+                <span className="font-semibold text-slate-800">{factor.name}</span>
+                <span className="text-sm font-bold text-slate-700">{factor.value}%</span>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Sleep Warning */}
-      {formData.sleepHours < 6 && (
-        <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded">
-          <p className="text-sm text-red-900">
-            <strong>💤 Sleep Alert:</strong> Poor sleep raises blood pressure and inflammation. Aim for 7–9 hours per night.
-          </p>
-        </div>
-      )}
-
-      {/* Stress Warning */}
-      {formData.stressLevel >= 4 && (
-        <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded">
-          <p className="text-sm text-red-900">
-            <strong>😰 Stress Alert:</strong> High cortisol from chronic stress strains your heart. Practice mindfulness or relaxation techniques.
-          </p>
-        </div>
-      )}
-
-      {/* Actionable Recommendations */}
-      <div>
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Your Personalized Recommendations:</h3>
-        <div className="grid gap-3">
-          {result.recommendations.map((rec, idx) => (
-            <div key={idx} className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
-              <div className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                  {idx + 1}
-                </span>
-                <p className="text-gray-800">{rec}</p>
+              <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-full bg-gradient-to-r ${factor.color} rounded-full transition-all duration-1000`}
+                  style={{ width: `${factor.value}%` }}
+                />
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Progress Tip */}
-      <div className="p-4 bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-lg">
-        <p className="text-sm text-cyan-900">
-          <strong>💡 Next Step:</strong> {heartHealthScore < 50
-            ? 'Focus on improving your sleep to 7–9 hours per night. This could increase your score by up to 12 points.'
-            : heartHealthScore < 70
-            ? 'Manage stress through regular exercise and relaxation. This could add up to 10 points to your score.'
-            : 'You\'re doing great! Maintain your healthy habits to keep your score high.'}
-        </p>
-      </div>
+      {/* Achievement Badges */}
+      {badges.length > 0 && (
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border-2 border-amber-200 p-6 shadow-sm">
+          <h3 className="font-bold text-amber-900 mb-4 text-lg">🏆 Your Achievements</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {badges.map((badge) => (
+              <div
+                key={badge.id}
+                className="flex flex-col items-center p-4 bg-white rounded-lg border-2 border-amber-200 hover:shadow-md transition text-center"
+              >
+                <div className="text-3xl mb-1">{badge.emoji}</div>
+                <p className="text-xs font-semibold text-amber-900">{badge.name}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Risk Level Guide */}
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h3 className="font-semibold text-gray-900 mb-3">Understanding Your Risk:</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-start gap-2">
-            <span className="text-green-600 font-bold">Low (0-10%):</span>
-            <span className="text-gray-700">Your current risk is low. Continue healthy lifestyle habits.</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-yellow-600 font-bold">Moderate (10-30%):</span>
-            <span className="text-gray-700">Plan to discuss risk factors with your healthcare provider.</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-red-600 font-bold">High (30%+):</span>
-            <span className="text-gray-700">Schedule a consultation with a cardiologist soon.</span>
-          </div>
+      {/* Personalized Recommendations */}
+      <div className="bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900 mb-4">💪 Personalized Recommendations</h3>
+        <div className="space-y-3">
+          {result.recommendations?.map((rec, idx) => (
+            <div key={idx} className="flex gap-3 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+              <span className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                {idx + 1}
+              </span>
+              <p className="text-sm text-slate-800">{rec}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Disclaimer */}
-      <div className="bg-red-50 border border-red-200 p-4 rounded-lg text-sm text-red-800">
-        <p className="font-semibold mb-1">Important Disclaimer:</p>
-        <p>
-          This tool provides educational information only and is not a medical diagnosis. 
-          Please consult with a healthcare professional for personalized medical advice.
+      {/* Warnings if applicable */}
+      {formData.sleepHours < 6 && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+          <p className="text-sm text-red-900">
+            <strong>💤 Sleep Alert:</strong> Poor sleep increases blood pressure and inflammation. Aim for 7–9 hours nightly.
+          </p>
+        </div>
+      )}
+
+      {formData.stressLevel >= 4 && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+          <p className="text-sm text-red-900">
+            <strong>😰 Stress Alert:</strong> High cortisol from stress strains your heart. Practice meditation or exercise.
+          </p>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-3 pt-4">
+        <button
+          onClick={handleShare}
+          className="px-4 py-3 rounded-lg bg-blue-500 text-white font-semibold hover:bg-blue-600 transition"
+        >
+          📤 Share
+        </button>
+        <button
+          onClick={handleDownload}
+          className="px-4 py-3 rounded-lg bg-slate-500 text-white font-semibold hover:bg-slate-600 transition"
+        >
+          📥 Download
+        </button>
+      </div>
+
+      {/* Footer Disclaimer */}
+      <div className="bg-slate-100 border border-slate-300 p-4 rounded-lg text-center">
+        <p className="text-xs text-slate-700">
+          <strong>Disclaimer:</strong> This tool provides educational information only. 
+          It is not a substitute for professional medical advice. 
+          Please consult with a healthcare provider for diagnosis and treatment.
         </p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3 flex-col sm:flex-row">
-        <button
-          onClick={handleShare}
-          className="flex-1 bg-gradient-to-r from-cyan-400 via-purple-500 to-indigo-600 text-black font-bold py-3 px-4 rounded-lg transition-colors cyan-glow"
-        >
-          📤 Share My Score
-        </button>
-        <button
-          onClick={onReset}
-          className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
-        >
-          Check Again
-        </button>
-      </div>
+      {/* Reset Button */}
+      <button
+        onClick={onReset}
+        className="w-full px-4 py-3 rounded-lg border-2 border-slate-400 text-slate-800 font-semibold hover:bg-slate-100 transition"
+      >
+        ↻ New Assessment
+      </button>
     </div>
   )
 }
