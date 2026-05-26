@@ -176,7 +176,7 @@ export default function RiskResult({ result, onReset }) {
       default:
         return {
           title: '? Your Risk',
-          message: 'We've analyzed your health data. Review the details below.',
+          message: "We've analyzed your health data. Review the details below.",
           action: 'Learn more below.',
         }
     }
