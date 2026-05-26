@@ -170,7 +170,7 @@ export default function RiskResult({ result, onReset }) {
       case 'high':
         return {
           title: '! High Risk',
-          message: 'Your risk is elevated. It's important to schedule a consultation with a cardiologist soon.',
+          message: "Your risk is elevated. It's important to schedule a consultation with a cardiologist soon.",
           action: 'Seek professional medical advice.',
         }
       default:
