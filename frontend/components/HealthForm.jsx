@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function HealthForm({ onSubmit, loading }) {
-  const [formData, setFormData] = useState({
+  const defaultFormData = {
     // Step 1: Demographics
     age: '',
     gender: 'male',
@@ -42,9 +42,40 @@ export default function HealthForm({ onSubmit, loading }) {
     // Step 6: Lifestyle
     sleepHours: 7,
     stressLevel: 3,
-  })
+  }
+
+  const [formData, setFormData] = useState(defaultFormData)
   const [currentStep, setCurrentStep] = useState(1)
+  const [showResumePrompt, setShowResumePrompt] = useState(false)
   const totalSteps = 6
+
+  useEffect(() => {
+    // Load saved form data on mount
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('formDataDraft')
+      const savedStep = sessionStorage.getItem('formDataStep')
+      
+      if (saved) {
+        try {
+          setFormData(JSON.parse(saved))
+          if (savedStep) {
+            setCurrentStep(parseInt(savedStep))
+            setShowResumePrompt(true)
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    // Save form data after each change
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('formDataDraft', JSON.stringify(formData))
+      sessionStorage.setItem('formDataStep', currentStep.toString())
+    }
+  }, [formData, currentStep])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -147,6 +178,16 @@ export default function HealthForm({ onSubmit, loading }) {
     }
   }
 
+  const handleResetForm = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('formDataDraft')
+      sessionStorage.removeItem('formDataStep')
+    }
+    setFormData(defaultFormData)
+    setCurrentStep(1)
+    setShowResumePrompt(false)
+  }
+
   const stressOptions = [
     { level: 1, emoji: '😌', label: 'Very low' },
     { level: 2, emoji: '🙂', label: 'Low' },
@@ -169,6 +210,32 @@ export default function HealthForm({ onSubmit, loading }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Resume Assessment Prompt */}
+      {showResumePrompt && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-green-900">📌 You have an unfinished assessment</p>
+            <p className="text-sm text-green-700">Continue where you left off at Step {currentStep} of {totalSteps}</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowResumePrompt(false)}
+              className="px-3 py-2 bg-white text-green-700 border border-green-300 rounded font-medium text-sm hover:bg-green-50"
+            >
+              Continue
+            </button>
+            <button
+              type="button"
+              onClick={handleResetForm}
+              className="px-3 py-2 bg-green-600 text-white rounded font-medium text-sm hover:bg-green-700"
+            >
+              Start Over
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Healthcare Trust Disclaimer - Top */}
       <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
         <p className="text-sm text-blue-900">

@@ -1,3 +1,4 @@
+import Head from 'next/head'
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -36,6 +37,33 @@ export default function Home() {
   }
 
   return (
+    <>
+      <Head>
+        <title>CardioCheck AI — Free Heart Health Assessment</title>
+        <meta name="description" content="Get a personalized cardiovascular risk assessment in 2 minutes. Free, private, no account needed. Powered by AI." />
+        <meta property="og:title" content="CardioCheck AI — Free Heart Health Assessment" />
+        <meta property="og:description" content="Get a personalized cardiovascular risk assessment in 2 minutes. Free, private, no account needed. Powered by AI." />
+        <meta property="og:url" content="https://cardiocheckai-iota.vercel.app" />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="CardioCheck AI — Free Heart Health Assessment" />
+        <meta name="twitter:description" content="Personalized cardiovascular risk assessment in 2 minutes. Free, AI-powered, no account needed." />
+      </Head>
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "CardioCheck AI",
+          "description": "Free AI-powered cardiovascular risk assessment tool",
+          "url": "https://cardiocheckai-iota.vercel.app",
+          "applicationCategory": "HealthApplication",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          }
+        })}
+      </script>
     <div className="min-h-screen bg-white">
       {/* Decorative background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -122,12 +150,12 @@ export default function Home() {
                 >
                   Check My Heart Risk →
                 </Link>
-                <Link
-                  href="/assess"
+                <a
+                  href="#how-it-works"
                   className="px-8 py-4 rounded-lg border-2 border-slate-300 text-slate-900 font-bold hover:bg-slate-50 transition text-center"
                 >
                   Learn How It Works
-                </Link>
+                </a>
               </div>
             </motion.div>
 
@@ -153,17 +181,18 @@ export default function Home() {
         {/* Stats Section */}
         <section className="bg-gradient-to-r from-red-50 to-blue-50 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="grid grid-cols-3 gap-6 sm:gap-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8">
               {[
-                { number: '2', unit: 'min', label: 'Quick Assessment' },
-                { number: '8+', unit: 'factors', label: 'Health Metrics' },
-                { number: '100%', unit: 'free', label: 'No Hidden Fees' },
+                { number: '8', unit: '', label: 'health metrics analyzed' },
+                { number: 'Under 2', unit: 'min', label: 'to complete' },
+                { number: '0', unit: '', label: 'personal data stored' },
+                { number: '100%', unit: 'free', label: 'no account needed' },
               ].map((stat, idx) => (
                 <div key={idx} className="text-center">
                   <div className="text-3xl sm:text-4xl font-bold text-transparent bg-gradient-to-r from-red-600 to-blue-600 bg-clip-text">
-                    {stat.number}
+                    {stat.number} {stat.unit && <span className="text-lg">{stat.unit}</span>}
                   </div>
-                  <p className="text-sm sm:text-base text-slate-600 font-medium mt-2">{stat.label}</p>
+                  <p className="text-xs sm:text-sm text-slate-600 font-medium mt-2">{stat.label}</p>
                 </div>
               ))}
             </div>
@@ -182,7 +211,7 @@ export default function Home() {
         </section>
 
         {/* How It Works */}
-        <section className="bg-slate-50 py-16 sm:py-24">
+        <section className="bg-slate-50 py-16 sm:py-24" id="how-it-works">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-12">
               <h3 className="text-3xl font-bold text-slate-900 mb-2">How It Works</h3>
@@ -258,10 +287,11 @@ export default function Home() {
         {/* Footer */}
         <footer className="bg-slate-900 text-slate-400 py-8">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm">
-            <p>© 2026 CardioCheck AI. For educational purposes. <span className="text-slate-500">Privacy • Disclaimer</span></p>
+            <p>© 2026 CardioCheck AI. For educational purposes. <Link href="/privacy" className="text-slate-300 hover:text-white">Privacy</Link> • <Link href="/disclaimer" className="text-slate-300 hover:text-white">Disclaimer</Link></p>
           </div>
         </footer>
       </div>
     </div>
+    </>
   )
 }

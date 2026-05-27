@@ -1,3 +1,5 @@
+import Head from 'next/head'
+import Link from 'next/link'
 import React, { useState, useEffect } from 'react'
 import HealthForm from '../components/HealthForm'
 import RiskResult from '../components/RiskResult'
@@ -78,7 +80,13 @@ export default function AssessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50">
+    <>
+      <Head>
+        <title>Heart Health Assessment — CardioCheck AI</title>
+        <meta name="description" content="Get your personalized cardiovascular risk assessment in 2 minutes. Free, private, no account needed." />
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50">
       {/* Decorative background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-red-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
@@ -174,5 +182,6 @@ export default function AssessPage() {
       {/* Mobile CTA safety margin */}
       {!result && <div className="h-20 sm:h-0"></div>}
     </div>
+    </>
   )
 }
