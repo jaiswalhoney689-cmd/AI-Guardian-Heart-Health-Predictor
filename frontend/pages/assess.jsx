@@ -3,6 +3,8 @@ import Link from 'next/link'
 import React, { useState, useEffect } from 'react'
 import HealthForm from '../components/HealthForm'
 import RiskResult from '../components/RiskResult'
+import MedicalDisclaimer from '../components/MedicalDisclaimer'
+import Footer from '../components/Footer'
 
 export default function AssessPage() {
   const [result, setResult] = useState(null)
@@ -94,6 +96,8 @@ export default function AssessPage() {
       </div>
 
       <div className="relative z-10">
+        {/* Medical Disclaimer Banner */}
+        <MedicalDisclaimer variant="banner" />
         {/* Header */}
         <header className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-200 z-40">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
@@ -182,6 +186,9 @@ export default function AssessPage() {
       {/* Mobile CTA safety margin */}
       {!result && <div className="h-20 sm:h-0"></div>}
     </div>
+
+    {/* FOOTER */}
+    <Footer />
     </>
   )
 }

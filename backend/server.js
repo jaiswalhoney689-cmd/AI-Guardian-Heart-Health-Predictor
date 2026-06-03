@@ -14,8 +14,30 @@ app.use(express.json())
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 const MODEL_NAME = process.env.MODEL_NAME || 'gemini-2.5-flash'
 
-// System prompt for Gemini
-const SYSTEM_PROMPT = `You are a preventive cardiology risk advisor. Based on the health inputs provided, return ONLY a valid JSON object with these keys: risk_level (Low/Moderate/High), risk_score_pct (0-100 integer), summary (2 sentences, plain English), recommendations (array of 4 strings), sleep_risk (0-100 integer), stress_risk (0-100 integer). Consider all provided health factors including family history, medical history, sleep, and stress. The sleep_risk and stress_risk should reflect individual risk contributions. Do NOT provide a clinical diagnosis. Do NOT add any text outside the JSON.`
+// System prompt for Gemini - Enhanced for transparency and reasoning
+const SYSTEM_PROMPT = `You are a preventive cardiology risk advisor providing educational health information only.
+
+IMPORTANT: You are providing EDUCATIONAL assessment only, NOT medical diagnosis or treatment advice.
+
+Return a JSON object ONLY with these exact keys:
+- risk_level: One of "Low", "Moderate", or "High"
+- risk_score_pct: Integer 0-100
+- summary: 2-3 sentence plain English summary (NOT medical advice)
+- factors: Array of objects [{factor: string name, impact: string explanation, level: "low"/"moderate"/"high"}] - list 3-5 key factors
+- recommendations: Array of 4 strings with general health awareness suggestions (NOT medical recommendations)
+- ai_reasoning: Detailed explanation paragraph of how risk score was calculated and what factors contributed
+- sleep_risk: 0-100 integer for sleep contribution
+- stress_risk: 0-100 integer for stress contribution
+
+Guidelines:
+- Use "awareness" and "educational" language, never diagnostic language
+- Explain risk factors in understandable terms
+- Always note that professional medical consultation is needed
+- Be transparent about what data points most influenced the assessment
+- Focus on modifiable and non-modifiable risk factors
+- Do NOT provide medical advice, only awareness education
+
+Consider all provided factors: age, BMI, blood pressure, cholesterol, smoking, exercise, family history, medical conditions, sleep, stress.`
 
 // POST /assess - Main assessment endpoint
 app.post('/assess', async (req, res) => {
@@ -82,7 +104,9 @@ app.post('/assess', async (req, res) => {
       : 'none'
 
     // Create user prompt with health data
-    const userPrompt = `Patient Health Data:
+    const userPrompt = `EDUCATIONAL CARDIOVASCULAR AWARENESS ASSESSMENT
+
+Patient Health Data:
 - Age: ${age} years
 - Gender: ${gender}
 - Weight: ${weight} kg
@@ -93,20 +117,35 @@ app.post('/assess', async (req, res) => {
 - Smoking Status: ${smoking}
 - Exercise Frequency: ${exerciseFrequency}
 - Family History: ${familyHistorySummary}
-- Past/Current Medical Conditions: ${medicalHistorySummary}${otherDisease ? ` (+ ${otherDisease})` : ''}
-- Current Smoking: ${smokingHabit}
+- Medical Conditions: ${medicalHistorySummary}${otherDisease ? ` (+ ${otherDisease})` : ''}
+- Current Smoking Habit: ${smokingHabit}
 - Alcohol Use: ${alcoholUse}
 - Average Sleep: ${sleep} hours/night
 - Daily Stress Level: ${stress}/5 (1=very low, 5=very high)
 
-Based on these comprehensive health metrics, provide a cardiovascular disease risk assessment. Consider that:
-- Sleep deprivation (<6h) and excess sleep (>10h) are risk factors
-- Chronic stress (level 4-5) increases cardiovascular risk
-- Family history significantly influences personal risk
-- Existing medical conditions (diabetes, hypertension, etc.) increase risk
-- Missing data points should be estimated conservatively
+Context:
+This is an EDUCATIONAL assessment tool. The user is seeking awareness information about cardiovascular health factors, NOT seeking medical diagnosis or treatment. This assessment should:
+1. Identify risk awareness level (Low/Moderate/High) based on evidence-based guidelines
+2. List specific factors that contributed to this assessment
+3. Explain the reasoning transparently
+4. Provide health awareness suggestions (not medical prescriptions)
 
-Return the response as valid JSON only with individual sleep_risk and stress_risk components (0-100).`
+Risk Factor Considerations:
+- Age is a non-modifiable factor
+- Sleep: <6 hours or >10 hours significantly increases cardiovascular stress
+- Chronic stress (level 4-5) is a documented cardiovascular risk factor
+- Family history multiplies personal risk
+- Smoking is a major modifiable risk factor
+- Exercise is protective
+- BMI >25 increases risk, especially with sedentary lifestyle
+- Medical conditions like diabetes and hypertension significantly increase risk
+
+Generate JSON response with:
+- Clear educational messaging
+- Transparent factor analysis
+- Specific reasoning explanation
+- Health awareness recommendations
+- Sleep and stress risk components`
 
     // Call Gemini API
     let result
@@ -183,17 +222,51 @@ Return the response as valid JSON only with individual sleep_risk and stress_ris
           const level = score < 25 ? 'Low' : score < 55 ? 'Moderate' : 'High'
 
           const recommendations = [
-            'Maintain a balanced diet and monitor weight regularly.',
-            'Aim for 150 minutes of moderate exercise per week.',
-            'Follow up with your primary care provider for blood pressure and cholesterol management.',
-            'Consider lifestyle changes and stress reduction techniques like meditation or mindfulness.',
+            'Maintain a balanced diet with regular monitoring of weight and health metrics.',
+            'Aim for 150 minutes of moderate aerobic exercise per week.',
+            'Consult with your primary care provider for regular health check-ups and risk assessment.',
+            'Consider stress management techniques like meditation, yoga, or other relaxation methods.',
           ]
+
+          // Build factors list
+          const factors = []
+          
+          if (age > 55) {
+            factors.push({ factor: 'Age', impact: `At age ${age}, cardiovascular risk naturally increases with age as a non-modifiable factor`, level: 'moderate' })
+          }
+          
+          if (smoking === 'yes' || smoking === 'current') {
+            factors.push({ factor: 'Smoking Status', impact: 'Current smoking is a major modifiable cardiovascular risk factor', level: 'high' })
+          }
+          
+          if (bmi > 25) {
+            factors.push({ factor: 'BMI', impact: `BMI of ${bmi} indicates overweight status, which increases cardiovascular stress`, level: bmi > 30 ? 'high' : 'moderate' })
+          }
+          
+          if (medicalHistory && (medicalHistory.diabetes || medicalHistory.hypertension)) {
+            factors.push({ factor: 'Medical Conditions', impact: 'Diabetes and/or hypertension are significant cardiovascular risk factors', level: 'high' })
+          }
+          
+          if (sleepVal < 6 || sleepVal > 10) {
+            factors.push({ factor: 'Sleep Pattern', impact: `${sleepVal} hours of sleep is outside the healthy range (7-9 hours), increasing cardiovascular stress`, level: 'high' })
+          }
+          
+          if (stressVal >= 4) {
+            factors.push({ factor: 'Stress Level', impact: `Daily stress level of ${stressVal}/5 indicates chronic stress, a documented cardiovascular risk factor`, level: 'high' })
+          }
+
+          // Detailed reasoning
+          const reasoning = `Based on your health profile, your cardiovascular risk assessment shows a "${level}" risk level with a score of ${score}%. Key contributing factors include: ${factors.map(f => f.factor).join(', ') || 'age and general health status'}. This assessment is educational only and based on evidence-based cardiovascular risk guidelines. Professional medical evaluation by a cardiologist or physician is recommended for comprehensive diagnosis and treatment planning.`
 
           return {
             risk_level: level,
             risk_score_pct: score,
-            summary: `Based on your health profile, your estimated cardiovascular risk is ${level}. Key factors include your age, lifestyle habits, family history, and existing health conditions.`,
+            summary: `Based on your health profile, your estimated cardiovascular risk awareness level is ${level}. This assessment considered your age, lifestyle, medical history, and current health metrics. Please consult a healthcare provider for professional evaluation.`,
+            factors: factors.length > 0 ? factors : [
+              { factor: 'General Health Status', impact: 'Your overall health metrics suggest baseline cardiovascular health considerations', level: 'low' }
+            ],
             recommendations,
+            ai_reasoning: reasoning,
             sleep_risk: Math.round(sleepRisk),
             stress_risk: Math.round(stressRisk),
             demo: true,
@@ -226,7 +299,7 @@ Return the response as valid JSON only with individual sleep_risk and stress_ris
     // Validate response structure
     if (
       !assessmentData.risk_level ||
-      !assessmentData.risk_score_pct ||
+      assessmentData.risk_score_pct === undefined ||
       !assessmentData.summary ||
       !Array.isArray(assessmentData.recommendations)
     ) {
@@ -239,6 +312,20 @@ Return the response as valid JSON only with individual sleep_risk and stress_ris
     }
     if (!assessmentData.stress_risk) {
       assessmentData.stress_risk = stress >= 4 ? 60 : stress >= 3 ? 40 : 20
+    }
+    
+    // Ensure factors array exists
+    if (!Array.isArray(assessmentData.factors)) {
+      assessmentData.factors = [
+        { factor: 'Age', impact: `Age ${age} is a risk factor for cardiovascular disease`, level: age > 55 ? 'moderate' : 'low' },
+        { factor: 'Lifestyle', impact: 'Physical activity and exercise frequency affect cardiovascular health', level: exerciseFrequency === 'sedentary' ? 'high' : 'low' },
+        { factor: 'Sleep Pattern', impact: `Average sleep of ${sleep} hours affects cardiovascular stress`, level: sleep < 6 || sleep > 10 ? 'high' : 'low' },
+      ]
+    }
+    
+    // Ensure AI reasoning exists
+    if (!assessmentData.ai_reasoning) {
+      assessmentData.ai_reasoning = `This educational assessment considered multiple cardiovascular risk factors from your health profile including age, lifestyle, medical history, and daily stress levels. The ${assessmentData.risk_level} risk level was determined by weighing modifiable factors (exercise, sleep, stress) against non-modifiable factors (age, family history). This is an educational awareness tool and does not replace professional medical evaluation.`
     }
 
     // Ensure risk_level is properly capitalized
