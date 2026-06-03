@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '@/lib/firebase';
+import { getAuthInstance } from '@/lib/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut, User } from 'firebase/auth';
 
 interface AuthContextType {
@@ -15,17 +15,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
+    // Only run on client side
+    if (typeof window === 'undefined') {
+      return;
+    }
 
-    return unsubscribe;
+    try {
+      const auth = getAuthInstance();
+      if (!auth) {
+        setLoading(false);
+        return;
+      }
+
+      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      setLoading(false);
+    }
   }, []);
 
   const signOut = async () => {
-    await firebaseSignOut(auth);
-    setUser(null);
+    try {
+      const auth = getAuthInstance();
+      if (auth) {
+        await firebaseSignOut(auth);
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
   };
 
   return (
